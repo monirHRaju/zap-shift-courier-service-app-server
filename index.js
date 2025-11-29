@@ -82,6 +82,13 @@ async function run() {
     const ridersCollection = db.collection("riders");
 
     // user related api
+    app.get('/users', verifyFBToken, async(req, res) => {
+      const cursor = userCollection.find()
+      const result = await cursor.toArray()
+
+      res.send(result)
+    })
+
     app.post('/users', async(req, res) => {
       const user = req.body
       user.role = 'user';
@@ -102,7 +109,7 @@ async function run() {
       if(req.query.status) {
         query.status = req.query.status
       }
-      const cursor = ridersCollection.find(query)
+      const cursor = ridersCollection.find(query).sort({createdAt: 1})
       const result = await cursor.toArray();
 
       res.send(result)
@@ -114,6 +121,36 @@ async function run() {
       rider.createdAt = new Date()
 
       const result = await ridersCollection.insertOne(rider)
+      res.send(result)
+    })
+
+    // update rider status
+    app.patch('/riders/:id', verifyFBToken, async(req, res) => {
+      const status = req.body.status
+      const id = req.params.id
+
+      const query =  {_id : new ObjectId(id)}
+      const updatedDoc = {
+        $set : {
+          status : status
+        }
+      }
+      const result = await ridersCollection.updateOne(query, updatedDoc)
+      
+      // add/update user role after approve a rider
+      if(status === 'approved'){
+        const email = req.body.email
+        const query = {email : email}
+
+        const userUpdate = {
+          $set : {
+            role : 'rider'
+          }
+        }
+
+        const userResponse = await userCollection.updateOne(query, userUpdate)
+
+      }
       res.send(result)
     })
 
