@@ -170,9 +170,17 @@ async function run() {
     //rider related api
     app.get("/riders", async (req, res) => {
       const query = {};
-      if (req.query.status) {
-        query.status = req.query.status;
+      const {status, district, workStatus} = req.query
+      if (status) {
+        query.status = status;
       }
+      if(district){
+        query.district = district
+      }
+      if(workStatus){
+        query.workStatus = workStatus
+      }
+      
       const cursor = ridersCollection.find(query).sort({ createdAt: 1 });
       const result = await cursor.toArray();
 
