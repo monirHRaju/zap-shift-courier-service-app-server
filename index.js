@@ -91,13 +91,27 @@ async function run() {
       next()
     }
 
+
+
     // user related api
     app.get("/users", verifyFBToken, async (req, res) => {
-      const cursor = userCollection.find();
+
+      const search = req.query.search
+      const query = {}
+      
+      if(search){
+        // query.displayName = search;
+        query.$or = [
+          {displayName: {$regex : search, $options: 'i'}},
+          {email: {$regex : search, $options: 'i'}}
+        ]
+      }
+      const cursor = userCollection.find(query).sort({createdAt : -1}).limit(5);
       const result = await cursor.toArray();
 
       res.send(result);
     });
+
     app.get("/users/:id", () => {});
 
 
@@ -176,19 +190,21 @@ async function run() {
 
     // update rider status
     app.patch("/riders/:id", verifyFBToken, verifyAdmin, async (req, res) => {
-      const status = req.body.status;
+      const applicationStatus = req.body.applicationStatus;
+      const workStatus = req.body.workStatus;
       const id = req.params.id;
 
       const query = { _id: new ObjectId(id) };
       const updatedDoc = {
         $set: {
-          status: status,
+          status: applicationStatus,
+          workStatus: workStatus
         },
       };
       const result = await ridersCollection.updateOne(query, updatedDoc);
 
       // add/update user role after approve a rider
-      if (status === "approved") {
+      if (applicationStatus === "approved") {
         const email = req.body.email;
         const query = { email: email };
 
@@ -208,12 +224,14 @@ async function run() {
     //get all parcels
     app.get("/parcels", async (req, res) => {
       const query = {};
-      const { email } = req.query;
+      const { email, deliveryStatus } = req.query;
       // /parcels?email=''
       if (email) {
         query.senderEmail = email;
       }
-
+      if(deliveryStatus){
+        query.deliveryStatus = deliveryStatus
+      }
       const cursor = parcelsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
@@ -355,6 +373,7 @@ async function run() {
         const update = {
           $set: {
             paymentStatus: "paid",
+            deliveryStatus: 'pending-pickup',
             trackingId: trackingId,
           },
         };
