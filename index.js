@@ -78,42 +78,41 @@ async function run() {
     const ridersCollection = db.collection("riders");
 
     // admin verify middleware
-    const verifyAdmin = async(req, res, next) => {
+    const verifyAdmin = async (req, res, next) => {
       // get email from verifyFBToken as it is hit before verifyAdmin
-      const email = req.decoded_email
-      const query = {email}
-      const user = await userCollection.findOne(query)
-      console.log(user)
-      if(!user || user.role !== "admin"){
-        return res.status(403).send({message: "forbidden access"})
+      const email = req.decoded_email;
+      const query = { email };
+      const user = await userCollection.findOne(query);
+      console.log(user);
+      if (!user || user.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
       }
 
-      next()
-    }
-
-
+      next();
+    };
 
     // user related api
     app.get("/users", verifyFBToken, async (req, res) => {
+      const search = req.query.search;
+      const query = {};
 
-      const search = req.query.search
-      const query = {}
-      
-      if(search){
+      if (search) {
         // query.displayName = search;
         query.$or = [
-          {displayName: {$regex : search, $options: 'i'}},
-          {email: {$regex : search, $options: 'i'}}
-        ]
+          { displayName: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } },
+        ];
       }
-      const cursor = userCollection.find(query).sort({createdAt : -1}).limit(5);
+      const cursor = userCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .limit(5);
       const result = await cursor.toArray();
 
       res.send(result);
     });
 
     app.get("/users/:id", () => {});
-
 
     app.get("/users/:email/role", async (req, res) => {
       const email = req.params.email;
@@ -151,36 +150,38 @@ async function run() {
     //   res.send(result);
     // });
 
-    app.patch('/users/:id/role', verifyFBToken, verifyAdmin, async (req, res) => {
-            const id = req.params.id;
-            const roleInfo = req.body;
-            const query = { _id: new ObjectId(id) }
-            const updatedDoc = {
-                $set: {
-                    role: roleInfo.role
-                }
-            }
-            const result = await userCollection.updateOne(query, updatedDoc)
-            res.send(result);
-        })
-
-
-
+    app.patch(
+      "/users/:id/role",
+      verifyFBToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const roleInfo = req.body;
+        const query = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: roleInfo.role,
+          },
+        };
+        const result = await userCollection.updateOne(query, updatedDoc);
+        res.send(result);
+      }
+    );
 
     //rider related api
     app.get("/riders", async (req, res) => {
       const query = {};
-      const {status, district, workStatus} = req.query
+      const { status, district, workStatus } = req.query;
       if (status) {
         query.status = status;
       }
-      if(district){
-        query.district = district
+      if (district) {
+        query.district = district;
       }
-      if(workStatus){
-        query.workStatus = workStatus
+      if (workStatus) {
+        query.workStatus = workStatus;
       }
-      
+
       const cursor = ridersCollection.find(query).sort({ createdAt: 1 });
       const result = await cursor.toArray();
 
@@ -206,7 +207,7 @@ async function run() {
       const updatedDoc = {
         $set: {
           status: applicationStatus,
-          workStatus: workStatus
+          workStatus: workStatus,
         },
       };
       const result = await ridersCollection.updateOne(query, updatedDoc);
@@ -237,8 +238,8 @@ async function run() {
       if (email) {
         query.senderEmail = email;
       }
-      if(deliveryStatus){
-        query.deliveryStatus = deliveryStatus
+      if (deliveryStatus) {
+        query.deliveryStatus = deliveryStatus;
       }
       const cursor = parcelsCollection.find(query);
       const result = await cursor.toArray();
@@ -261,6 +262,32 @@ async function run() {
 
       const result = await parcelsCollection.insertOne(parcel);
       res.send(result);
+    });
+
+    app.patch("/parcels/:id", async (req, res) => {
+      const id = req.params.id;
+      const { riderId, riderName, riderEmail } = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          deliveryStatus: "driver_assigned",
+          riderId: riderId,
+          riderName: riderName,
+          riderEmail: riderEmail,
+        },
+      };
+      await parcelsCollection.updateOne(query, updatedDoc);
+
+      // update rider
+      const riderQuery = { _id : new ObjectId(riderId)}
+      const riderUpdates ={
+        $set : {
+          workStatus : "in_delivery"
+        }
+      }
+      const parcelResult = await ridersCollection.updateOne(riderQuery, riderUpdates)
+
+      res.send(parcelResult)
     });
 
     app.delete("/parcels/:id", async (req, res) => {
@@ -381,7 +408,7 @@ async function run() {
         const update = {
           $set: {
             paymentStatus: "paid",
-            deliveryStatus: 'pending-pickup',
+            deliveryStatus: "pending-pickup",
             trackingId: trackingId,
           },
         };
